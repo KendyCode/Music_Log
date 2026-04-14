@@ -261,3 +261,5 @@ def delete_review(review_id):
     flash("L'avis a été supprimé par l'administration." if current_user.is_admin else "L'avis a été supprimé.", "info")
     return redirect(request.referrer or url_for('index'))
 
+
+
