@@ -122,7 +122,9 @@ def admin_edit_track(track_id):
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    # Optionnel : Afficher les 5 derniers avis publics sur le site
+    latest_reviews = Review.query.order_by(Review.date_posted.desc()).limit(5).all()
+    return render_template('index.html', reviews=latest_reviews)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
