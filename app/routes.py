@@ -23,6 +23,41 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def apply_db_priority(api_data_list):
+    """
+    Prend une liste de tracks venant de l'API Deezer 
+    et remplace les infos par celles de la BDD si elles existent.
+    """
+    # 1. On prépare la liste des IDs à chercher en BDD
+    api_ids = []
+    for track in api_data_list:
+        track_id_str = str(track["id"])
+        api_ids.append(track_id_str)
+
+    # 2. Une seule requête pour trouver toutes les tracks existantes
+    tracks_in_db = Track.query.filter(
+        Track.deezer_id.in_(api_ids)
+    ).all()
+
+    # 3. On crée un dictionnaire (map) pour retrouver facilement les tracks
+    tracks_map = {}
+    for t in tracks_in_db:
+        tracks_map[t.deezer_id] = t
+
+    # 4. On applique les changements
+    for track_api in api_data_list:
+        current_id = str(track_api["id"])
+        
+        if current_id in tracks_map:
+            track_db = tracks_map[current_id]
+            
+            # On écrase les données de l'API par celles de l'Admin
+            track_api["title"] = track_db.title
+            track_api["artist"]["name"] = track_db.artist
+            track_api["album"]["cover_medium"] = track_db.cover_medium
+            
+    return api_data_list
+
 @app.route('/admin/dashboard')
 @login_required
 @admin_required
@@ -147,25 +182,8 @@ def search():
         if response.status_code == 200:
             api_data = response.json().get('data', [])
 
-            for track_api in api_data:
-                # On cherche si la track existe dans NOTRE base de données
-                # On compare le string 'id' de l'API avec notre 'deezer_id'
-                track_db = Track.query.filter_by(deezer_id=str(track_api["id"])).first()
-
-                if track_db:
-                    # PRIORITÉ À LA BDD : Si l'admin a modifié le titre ou l'artiste en local,
-                    # on remplace les données de l'API par les nôtres.
-                    track_api["title"] = track_db.title
-
-                    # Comme on a "aplati" notre modèle, on réinjecte l'artiste
-                    # là où le template l'attend pour l'API Deezer
-                    track_api["artist"]["name"] = track_db.artist
-
-                    # Idem pour la pochette
-
-                    track_api["album"]["cover_medium"] = track_db.cover_medium
-
-                results.append(track_api)
+            # APPEL DE LA FONCTION UNIQUE ICI
+            results = apply_db_priority(api_data)
 
     return render_template('search.html', form=form, results=results)
 
@@ -184,13 +202,11 @@ def add_review(deezer_id):
 
     data = response.json()
 
-    # --- AJOUT DE LA LOGIQUE DE PRIORITÉ BDD ---
-    track_db = Track.query.filter_by(deezer_id=str(deezer_id)).first()
-    if track_db:
-        data['title'] = track_db.title
-        data['artist']['name'] = track_db.artist
-        data['album']['cover_medium'] = track_db.cover_medium
-    # --------------------------------------------
+    # --- UTILISATION DE LA FONCTION ---
+    # On met 'data' dans une liste [] pour la fonction, 
+    # puis on récupère le premier élément [0]
+    data = apply_db_priority([data])[0]
+    # ----------------------------------
 
     print(data["title"])
 
