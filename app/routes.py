@@ -306,3 +306,12 @@ def track_details(deezer_id):
     reviews = track_in_db.reviews if track_in_db else []
 
     return render_template('track_details.html', track=data, reviews=reviews)
+
+# Pour que l'user puisse voir ses reviews 
+
+@app.route('/my-reviews')
+@login_required
+def my_reviews():
+    # current_user.reviews fonctionne grâce au backref='author' dans le modèle User
+    user_reviews = current_user.reviews
+    return render_template('my_reviews.html', reviews=user_reviews)
